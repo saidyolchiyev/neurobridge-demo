@@ -85,6 +85,14 @@ Server (`server/.env`):
 
 Never place database credentials or OpenAI keys in a `VITE_` variable.
 
+## Deploy one Render web service
+
+The `render.yaml` Blueprint builds the Vite client and Express server together. Express serves the built client and the `/api` routes from one Render URL. Connect the repository in Render and use the Blueprint; if the actual Git repository has this project inside a `neurobridge-demo/` subfolder, set that as Render's Root Directory.
+
+Set `DATABASE_URL` to the Supabase PostgreSQL **Session pooler** connection string (port `5432`) and deploy. The start command applies pending Prisma migrations before starting the server. Render generates `JWT_SECRET`; the Vite variables are set for production API mode. `OPENAI_API_KEY` is optional.
+
+After deployment, open `https://<your-service>.onrender.com/api/health`. Free Render services can sleep while idle and may take a short time to wake on the next request.
+
 ## API surface
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
