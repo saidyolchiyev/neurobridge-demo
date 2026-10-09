@@ -3,6 +3,7 @@ services:
     name: yolyoldas
     runtime: node
     plan: free
+    rootDir: neurobridge-demo
     buildCommand: npm ci --include=dev && npm --prefix server ci --include=dev && npm run build && npm --prefix server run db:generate
     startCommand: cd server && npm run db:migrate && npm start
     healthCheckPath: /api/health
