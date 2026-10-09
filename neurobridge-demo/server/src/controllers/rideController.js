@@ -1,0 +1,12 @@
+import { z } from "zod";
+import * as rideService from "../services/rideService.js";
+import { matchRides } from "../services/matchingService.js";
+import { nearbyDrivers } from "../services/locationService.js";
+import { explainGroundedMatches } from "../services/aiService.js";
+export const list = async (req,res) => {const filters=z.object({origin:z.string().max(100).optional(),destination:z.string().max(100).optional(),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),passengers:z.coerce.number().int().min(1).max(8).optional()}).parse(req.query);return res.json(await rideService.listRides(filters));};
+export const nearby = async (req,res) => { const query=z.object({latitude:z.coerce.number().min(-90).max(90),longitude:z.coerce.number().min(-180).max(180),radius:z.coerce.number().min(100).max(100000).optional()}).parse(req.query);return res.json(await nearbyDrivers(query.latitude,query.longitude,query.radius)); };
+export const match = async (req,res) => { const matches=await matchRides(req.body);const explanation=await explainGroundedMatches(matches);const explainedMatches=matches.map((ride)=>({...ride,aiExplanation:explanation.explanations[ride.id]||null}));return res.json({matches:explainedMatches,explanation:explanation.explanation,aiAvailable:explanation.available}); };
+export const create = async (req,res) => { const ride=await rideService.createRide(req.user.sub,req.user.role,req.body);req.app.get("io").emit("ride:updated",{id:ride.id});return res.status(201).json(ride); };
+export const get = async (req,res) => res.json(await rideService.getRide(req.params.id));
+export const route = async (req,res) => res.json(await rideService.getRideRoute(req.params.id));
+export const update = async (req,res) => { const ride=await rideService.updateRide(req.user.sub,req.params.id,req.body);req.app.get("io").emit("ride:updated",{id:ride.id});return res.json(ride); };

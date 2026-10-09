@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PASSENGER
+  DRIVER
+}
+enum RideStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+}
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+enum DetourProposalStatus {
+  PENDING_DRIVER
+  PENDING_PASSENGERS
+  APPROVED
+  REJECTED
+  INFEASIBLE
+}
+enum PassengerConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String           @id @default(cuid())
+  name          String
+  email         String           @unique
+  phone         String
+  passwordHash  String
+  role          Role             @default(PASSENGER)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  vehicle       Vehicle?
+  rides         Ride[]
+  bookings      Booking[]        @relation("PassengerBookings")
+  consents      PassengerConsent[]
+  location      DriverLocation?
+  sentMessages  Message[]
+}
+
+model Vehicle {
+  id       String @id @default(cuid())
+  driverId String @unique
+  model    String
+  type     String @default("Sedan")
+  capacity Int
+  driver   User   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  rides    Ride[]
+}
+
+model Ride {
+  id                String       @id @default(cuid())
+  driverId          String
+  vehicleId         String?
+  originName        String
+  destinationName   String
+  originLatitude    Float
+  originLongitude   Float
+  destinationLatitude Float
+  destinationLongitude Float
+  departureTime     DateTime
+  availableSeats    Int
+  price             Decimal      @db.Decimal(8, 2)
+  status            RideStatus   @default(ACTIVE)
+  createdAt         DateTime     @default(now())
+  driver            User         @relation(fields: [driverId], references: [id])
+  vehicle           Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  bookings          Booking[]
+  detourProposals   DetourProposal[]
+  @@index([originName, destinationName, departureTime, status])
+  @@index([driverId, status])
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  rideId      String
+  passengerId String
+  status      BookingStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  ride        Ride          @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  passenger   User          @relation("PassengerBookings", fields: [passengerId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  fare        Decimal?      @db.Decimal(8, 2)
+  pickupLatitude Float?
+  pickupLongitude Float?
+  dropoffLatitude Float?
+  dropoffLongitude Float?
+  proposal    DetourProposal?
+  detourConsents PassengerConsent[] @relation("AffectedBooking")
+  @@index([rideId, passengerId, status])
+  @@index([passengerId, status])
+}
+
+model DetourProposal {
+  id                    String                @id @default(cuid())
+  bookingId             String                @unique
+  rideId                String
+  status                DetourProposalStatus  @default(PENDING_DRIVER)
+  originalDistanceKm    Decimal               @db.Decimal(8, 2)
+  adjustedDistanceKm    Decimal               @db.Decimal(8, 2)
+  additionalDistanceKm  Decimal               @db.Decimal(8, 2)
+  originalDurationMinutes Int
+  adjustedDurationMinutes Int
+  additionalDurationMinutes Int
+  newPassengerBaseFare  Decimal               @db.Decimal(8, 2)
+  detourCost            Decimal               @db.Decimal(8, 2)
+  driverTimeCost        Decimal               @db.Decimal(8, 2)
+  compensationTotal     Decimal               @db.Decimal(8, 2)
+  platformCommission    Decimal               @db.Decimal(8, 2)
+  proposedFare          Decimal               @db.Decimal(8, 2)
+  currentDriverNet      Decimal               @db.Decimal(8, 2)
+  projectedDriverNet   Decimal               @db.Decimal(8, 2)
+  driverNetChange       Decimal               @db.Decimal(8, 2)
+  profitability         String
+  financiallyFeasible   Boolean
+  routeCoordinates      Json
+  pickupOptions         Json
+  createdAt             DateTime              @default(now())
+  booking               Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ride                  Ride                  @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  consents              PassengerConsent[]
+  @@index([rideId, status])
+}
+
+model PassengerConsent {
+  id                 String                @id @default(cuid())
+  proposalId         String
+  affectedBookingId  String
+  passengerId        String
+  delayMinutes       Int
+  discountPercent    Int
+  compensationAmount Decimal               @db.Decimal(8, 2)
+  updatedFare        Decimal               @db.Decimal(8, 2)
+  status             PassengerConsentStatus @default(PENDING)
+  createdAt          DateTime              @default(now())
+  respondedAt        DateTime?
+  proposal           DetourProposal        @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  affectedBooking    Booking               @relation("AffectedBooking", fields: [affectedBookingId], references: [id], onDelete: Cascade)
+  passenger          User                  @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  @@unique([proposalId, affectedBookingId])
+  @@index([passengerId, status])
+}
+
+model DriverLocation {
+  id        String   @id @default(cuid())
+  driverId  String   @unique
+  latitude  Float
+  longitude Float
+  updatedAt DateTime @updatedAt
+  driver    User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  bookingId String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  @@index([bookingId, createdAt])
+}
